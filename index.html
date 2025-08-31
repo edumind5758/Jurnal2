@@ -292,10 +292,10 @@
             <div class="cors-fix">
                 <div class="demo-header">
                     <i class="fas fa-exclamation-triangle" style="color: #f59e0b;"></i>
-                    <span>Info Koneksi CORS</span>
+                    <span>Info Koneksi</span>
                 </div>
                 <p style="font-size: 13px; margin-top: 10px;">
-                    Untuk mengatasi error CORS, kita menggunakan Google Apps Script URL yang berbeda dan teknik khusus.
+                    Sistem akan mencoba terhubung ke Google Apps Script. Jika gagal, akan menggunakan data simulasi.
                 </p>
             </div>
             
@@ -346,8 +346,8 @@
             const responseInfo = document.getElementById('responseInfo');
             const responseData = document.getElementById('responseData');
             
-            // URL Google Apps Script Web App yang BARU
-            const API_URL = 'https://script.google.com/macros/s/AKfycbzB-fvHKAI8wgOIYH_kCi7TxMb462wKUsV9KQcPQOJBRPgWp4b0z0H3ricm5eQ6D1P66Q/exec';
+            // URL Google Apps Script Web App
+            const API_URL = 'https://script.google.com/macros/s/AKfycbxm8pc4XOHZh577-_0zte6CwYFe_iK5r3hCMzFMCC_5Lu_JmyjnUFYG8114tSA180LrUg/exec';
             
             loginForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -366,7 +366,7 @@
                 hideMessages();
                 
                 try {
-                    // Coba hubungkan ke Google Apps Script dengan teknik khusus untuk menghindari CORS
+                    // Coba hubungkan ke Google Apps Script
                     const response = await connectToGoogleAppsScript(username, password);
                     
                     // Tampilkan informasi response
@@ -399,97 +399,30 @@
             });
             
             async function connectToGoogleAppsScript(username, password) {
-                // Teknik 1: Menggunakan Google Apps Script sebagai proxy dengan metode GET
-                // (lebih jarang mengalami masalah CORS)
                 try {
-                    console.log('Mencoba teknik GET...');
-                    const response = await fetch(`${API_URL}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, {
-                        method: 'GET',
-                        mode: 'no-cors'
+                    // Coba pendekatan langsung ke Google Apps Script
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ 
+                            username: username,
+                            password: password 
+                        }),
                     });
                     
-                    // Karena menggunakan no-cors, kita tidak bisa membaca response langsung
-                    // Jadi kita asumsikan request berhasil dan menggunakan fallback
-                    console.log('Request GET terkirim (no-cors mode)');
-                    return simulateLogin(username, password);
-                    
-                } catch (error) {
-                    console.log('Teknik GET gagal:', error);
-                    
-                    // Teknik 2: Menggunakan JSONP (jika Google Apps Script mendukung)
-                    try {
-                        console.log('Mencoba teknik JSONP...');
-                        return await jsonpRequest(username, password);
-                    } catch (jsonpError) {
-                        console.log('Teknik JSONP gagal:', jsonpError);
-                        
-                        // Teknik 3: Menggunakan form submission tradisional
-                        try {
-                            console.log('Mencoba teknik form submission...');
-                            return await formSubmission(username, password);
-                        } catch (formError) {
-                            console.log('Teknik form submission gagal:', formError);
-                            
-                            // Fallback ke data dummy
-                            console.log('Menggunakan fallback data simulasi');
-                            return simulateLogin(username, password);
-                        }
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('Response dari GAS:', data);
+                        return data;
                     }
+                    throw new Error(`Network response was not ok: ${response.status}`);
+                } catch (error) {
+                    console.log('Koneksi ke GAS gagal, menggunakan simulasi:', error);
+                    // Fallback ke data simulasi jika API tidak merespons
+                    return simulateLogin(username, password);
                 }
-            }
-            
-            // Teknik JSONP untuk menghindari CORS
-            function jsonpRequest(username, password) {
-                return new Promise((resolve, reject) => {
-                    // JSONP hanya bekerja jika Google Apps Script mendukung callback
-                    const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-                    const script = document.createElement('script');
-                    
-                    window[callbackName] = function(data) {
-                        delete window[callbackName];
-                        document.body.removeChild(script);
-                        resolve(data);
-                    };
-                    
-                    script.src = `${API_URL}?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&callback=${callbackName}`;
-                    document.body.appendChild(script);
-                    
-                    // Timeout setelah 10 detik
-                    setTimeout(() => {
-                        reject(new Error('JSONP timeout'));
-                    }, 10000);
-                });
-            }
-            
-            // Teknik form submission untuk menghindari CORS
-            function formSubmission(username, password) {
-                return new Promise((resolve, reject) => {
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = API_URL;
-                    form.style.display = 'none';
-                    
-                    const usernameInput = document.createElement('input');
-                    usernameInput.type = 'hidden';
-                    usernameInput.name = 'username';
-                    usernameInput.value = username;
-                    
-                    const passwordInput = document.createElement('input');
-                    passwordInput.type = 'hidden';
-                    passwordInput.name = 'password';
-                    passwordInput.value = password;
-                    
-                    form.appendChild(usernameInput);
-                    form.appendChild(passwordInput);
-                    document.body.appendChild(form);
-                    
-                    // Karena kita tidak bisa menangkap response dengan mudah,
-                    // kita asumsikan form terkirim dan menggunakan fallback
-                    setTimeout(() => {
-                        document.body.removeChild(form);
-                        resolve(simulateLogin(username, password));
-                    }, 1000);
-                });
             }
             
             function simulateLogin(username, password) {
@@ -543,6 +476,30 @@
                 errorMsg.style.display = 'none';
                 successMsg.style.display = 'none';
                 responseInfo.style.display = 'none';
+            }
+
+            // Test koneksi saat halaman dimuat
+            testConnection();
+            
+            async function testConnection() {
+                try {
+                    console.log('Testing connection to Google Apps Script...');
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({username: 'test', password: 'test'})
+                    });
+                    
+                    if (response.ok) {
+                        console.log('✅ Koneksi ke Google Apps Script berhasil!');
+                    } else {
+                        console.log('❌ Koneksi ke Google Apps Script gagal:', response.status);
+                    }
+                } catch (error) {
+                    console.log('❌ Error koneksi ke Google Apps Script:', error);
+                }
             }
         });
     </script>
